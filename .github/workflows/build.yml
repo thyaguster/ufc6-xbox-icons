@@ -1,0 +1,67 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14.2'
+          architecture: x64
+
+      - name: Check source and public tests
+        shell: pwsh
+        run: |
+          python -m compileall -q patcher_core.py xbox_icons.py tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -c "from pathlib import Path; from patcher_core import load_profile; from xbox_icons import license_text; p=load_profile(Path('.')); assert len(p['entries'])==430; assert 'Jean-loup' in license_text(); print('Profile and runtime notices verified')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install build tools
+        run: python -m pip install PyInstaller==6.22.3 pyinstaller-hooks-contrib==2026.9
+
+      - name: Build standalone executable
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name UFC6-Xbox-Icons --add-data "profiles;profiles" --add-data "LICENSE;." --add-data "THIRD-PARTY-NOTICES.md;." --add-data "runtime-licenses;runtime-licenses" xbox_icons.py
+
+      - name: Check bundled profile and notices
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          from PyInstaller.archive.readers import CArchiveReader
+          base = Path('.')
+          archive = CArchiveReader('dist/UFC6-Xbox-Icons.exe')
+          resources = ['profiles/PPSA23566-01.006.000.json', 'LICENSE', 'THIRD-PARTY-NOTICES.md']
+          resources += [p.as_posix() for p in Path('runtime-licenses').glob('*.txt')]
+          for rel in resources:
+              key = next(k for k in archive.toc if k.replace('\\', '/') == rel)
+              assert archive.extract(key) == (base / rel).read_bytes(), rel
+          print('All bundled resources verified')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $digest = (Get-FileHash dist/UFC6-Xbox-Icons.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  UFC6-Xbox-Icons.exe" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: UFC6-Xbox-Icons-Windows-x64
+          path: |
+            dist/UFC6-Xbox-Icons.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
