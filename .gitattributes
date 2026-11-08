@@ -1,0 +1,7 @@
+* text=auto eol=lf
+# Backups identify the exact profile bytes; preserve them on every platform.
+profiles/*.json -text
+# Preserve the supplied license texts and screenshot verbatim.
+runtime-licenses/* -text
+LICENSE -text
+*.png -text
