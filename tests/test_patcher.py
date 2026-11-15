@@ -40,11 +40,11 @@ class PatcherTests(unittest.TestCase):
                 expected=e['known_installed_sha256'] if installed else e['original_sha256']
                 self.assertEqual(core.sha256(files.read(e)),expected)
 
-    def test_01_reject_other_title_and_version_without_write(self):
+    def test_01_reject_other_title_without_write(self):
         p=self.root/'sce_sys/param.json'
         original=p.read_bytes()
         try:
-            for key,value in [('titleId','PPSA00000'),('contentVersion','01.007.000')]:
+            for key,value in [('titleId','PPSA00000')]:
                 data=json.loads(original);data[key]=value;p.write_text(json.dumps(data))
                 with self.assertRaises(core.PatchError):core.run('install',self.root,self.profile)
                 self.assertFalse(self.backup.exists())

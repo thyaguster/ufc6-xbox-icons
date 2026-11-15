@@ -15,6 +15,44 @@ DEFAULTS = dict(Cross='J', Circle='L', Square='K', Triangle='I', L1='Q', R1='E',
                Left='Left', Right='Right', LeftStickUp='W', LeftStickDown='S',
                LeftStickLeft='A', LeftStickRight='D', RightStickUp='T',
                RightStickDown='G', RightStickLeft='F', RightStickRight='H')
+PAD_DEFAULTS = dict(Cross='South', Circle='East', Square='West', Triangle='North',
+                    L1='LeftShoulder', R1='RightShoulder', L2='LeftTrigger', R2='RightTrigger',
+                    L3='LeftStick', R3='RightStick', Options='Start', TouchPad='Touchpad',
+                    Up='DpadUp', Down='DpadDown', Left='DpadLeft', Right='DpadRight')
+PAD_SOURCES = (
+    'South', 'East', 'West', 'North',
+    'LeftShoulder', 'RightShoulder', 'LeftTrigger', 'RightTrigger',
+    'LeftStick', 'RightStick', 'Start', 'Touchpad', 'Back', 'Guide', 'Misc1',
+    'DpadUp', 'DpadDown', 'DpadLeft', 'DpadRight',
+    'LeftPaddle1', 'RightPaddle1', 'LeftPaddle2', 'RightPaddle2',
+)
+SOURCE_TO_CONTROL = dict(
+    South='Cross', East='Circle', West='Square', North='Triangle',
+    LeftShoulder='L1', RightShoulder='R1', LeftTrigger='L2', RightTrigger='R2',
+    LeftStick='L3', RightStick='R3', Start='Options', Touchpad='TouchPad',
+    Back='TouchPad', Guide='Guide', Misc1='TouchPad',
+    DpadUp='Up', DpadDown='Down', DpadLeft='Left', DpadRight='Right',
+    LeftPaddle1='L1', RightPaddle1='R1', LeftPaddle2='L2', RightPaddle2='R2',
+)
+PAD_ALIASES = {
+    'a': 'South', 'cross': 'South', 'xbox a': 'South', 'a / cross': 'South',
+    'b': 'East', 'circle': 'East', 'xbox b': 'East', 'b / circle': 'East',
+    'x': 'West', 'square': 'West', 'xbox x': 'West', 'x / square': 'West',
+    'y': 'North', 'triangle': 'North', 'xbox y': 'North', 'y / triangle': 'North',
+    'lb': 'LeftShoulder', 'l1': 'LeftShoulder', 'lb / l1': 'LeftShoulder',
+    'rb': 'RightShoulder', 'r1': 'RightShoulder', 'rb / r1': 'RightShoulder',
+    'lt': 'LeftTrigger', 'l2': 'LeftTrigger', 'lt / l2': 'LeftTrigger',
+    'rt': 'RightTrigger', 'r2': 'RightTrigger', 'rt / r2': 'RightTrigger',
+    'l3': 'LeftStick', 'ls': 'LeftStick', 'left stick': 'LeftStick',
+    'r3': 'RightStick', 'rs': 'RightStick', 'right stick': 'RightStick',
+    'options': 'Start', 'menu': 'Start', 'start': 'Start',
+    'select': 'Back', 'share': 'Back', 'view': 'Back', 'back': 'Back',
+    'touchpad': 'Touchpad', 'touch pad': 'Touchpad',
+    'up': 'DpadUp', 'dpad up': 'DpadUp', 'd-pad up': 'DpadUp',
+    'down': 'DpadDown', 'dpad down': 'DpadDown', 'd-pad down': 'DpadDown',
+    'left': 'DpadLeft', 'dpad left': 'DpadLeft', 'd-pad left': 'DpadLeft',
+    'right': 'DpadRight', 'dpad right': 'DpadRight', 'd-pad right': 'DpadRight',
+}
 RESERVED = {'Escape','F1','F2','F7','F8','F11'}
 EXTRA = {'SpeakerVolume','VibrationIntensity','TriggerEffectIntensity','GyroToggle','TouchPadMode'}
 KEY_NAMES = {'Return','Return2','Escape','Space','Tab','Backspace','CapsLock',
@@ -45,6 +83,21 @@ def key_name(value):
     raise PatchError(f'Unsupported key name: {value!r}. Use an SDL key name or a mouse button.')
 
 
+def pad_source_name(value):
+    if value is None:
+        return None
+    value = str(value).strip()
+    if not value or value.casefold() in ('unbound', 'none', 'disabled'):
+        return None
+    low = value.casefold()
+    if low in PAD_ALIASES:
+        return PAD_ALIASES[low]
+    for src in PAD_SOURCES:
+        if src.casefold() == low:
+            return src
+    raise PatchError(f'Unsupported controller button: {value!r}. Choose a standard gamepad button.')
+
+
 def conflict_name(key):
     return key.replace('Right Shift','Left Shift').replace('Right Ctrl','Left Ctrl').replace('Right Alt','Left Alt').replace('Right GUI','Left GUI')
 
@@ -68,6 +121,36 @@ class Bindings:
               'Invalid additional Kyty input settings.')
         return self
 
+    def pad_controls(self):
+        """Return effective controller (Pad:) mapping following Kyty's InputMap rules."""
+        custom_pad = False
+        source_owner = {}
+        for entry in self.extra:
+            if entry == 'Pad=Disabled':
+                custom_pad = True
+                source_owner.clear()
+                continue
+            if entry.startswith('Pad:') and '=' in entry:
+                rest = entry[4:]
+                ctrl, src = rest.split('=', 1)
+                ctrl, src = ctrl.strip(), src.strip()
+                if ctrl in PAD_DEFAULTS and src in PAD_SOURCES:
+                    custom_pad = True
+                    for k, v in list(source_owner.items()):
+                        if v == ctrl:
+                            del source_owner[k]
+                    source_owner[src] = ctrl
+        if not custom_pad:
+            return dict(PAD_DEFAULTS)
+        result = {k: None for k in PAD_DEFAULTS}
+        for src, ctrl in source_owner.items():
+            if ctrl in result:
+                result[ctrl] = src
+        return result
+
+    def has_custom_pad(self):
+        return self.pad_controls() != PAD_DEFAULTS
+
     def argument(self):
         if not self.custom and self.controls==DEFAULTS and not self.extra:return ''
         parts=list(self.extra)
@@ -83,6 +166,22 @@ class Bindings:
 
 
 def defaults():return Bindings(dict(DEFAULTS))
+
+
+def from_pad_controls(pad_map, base=None, source='Edited controller bindings'):
+    base = base or defaults()
+    check(set(pad_map) <= set(PAD_DEFAULTS), 'Unknown controller action in pad settings.')
+    normalized = {k: pad_source_name(pad_map.get(k)) for k in PAD_DEFAULTS}
+    active = [v for v in normalized.values() if v is not None]
+    check(len(active) == len(set(active)), 'Two controller actions share the same physical button; choose distinct buttons.')
+    retained = [
+        e for e in base.extra
+        if e != 'Pad=Disabled' and not (e.startswith('Pad:') and e[4:].split('=', 1)[0].strip() in PAD_DEFAULTS)
+    ]
+    if normalized != PAD_DEFAULTS:
+        pad_entries = [f'Pad:{k}={v}' for k, v in normalized.items() if v is not None]
+        retained = retained + (pad_entries or ['Pad=Disabled'])
+    return Bindings(dict(base.controls), source, base.custom, tuple(retained)).validate()
 
 
 def parse_keymap(text,source='Kyty keymap'):

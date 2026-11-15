@@ -71,8 +71,6 @@ def validate_game(root, profile):
         raise PatchError('Choose the extracted game folder containing sce_sys/param.json and Data.') from exc
     check(metadata.get('titleId') == profile['title_id'],
           'Unsupported title. This release supports PPSA23566 only.')
-    check(metadata.get('contentVersion') == profile['content_version'],
-          'Unsupported version. This release supports 01.006.000 only.')
     return root
 
 

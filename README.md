@@ -20,13 +20,12 @@ included in the download.
 | Item | Support |
 | --- | --- |
 | Title ID | **PPSA23566** |
-| Game version | **01.006.000** |
 | Standalone desktop application | Windows x64 |
 | Source version | Python 3.10+; Tkinter; Pillow for keyboard artwork |
 | Tested setup | UFC 6 launched through PORTHEON using its KytyPS5 engine |
 
-The patcher checks the title/version and every affected original range before
-writing. Other regions, game updates, and already-modified ranges are rejected.
+The patcher checks the title ID and every affected original range before
+writing. Other regions and already-modified ranges are rejected.
 It does not require a particular launcher folder or drive letter.
 
 Career-menu A/B/Y and LB/RB icons were visually verified in game. The cinematic

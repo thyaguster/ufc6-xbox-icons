@@ -1,8 +1,10 @@
 # UFC 6 Controller Icons v1.1.0
 
-Adds keyboard/mouse icon installation alongside Xbox and original PlayStation.
-Supports **PPSA23566, version 01.006.000**.
+Adds keyboard/mouse icon installation and controller button remapping alongside Xbox and original PlayStation.
+Supports **PPSA23566**.
 
+- Visual button-icon selector cards (**PlayStation**, **Xbox**, **Keyboard & Mouse**) and separate Controller & Keyboard Layout Editor window.
+- Remap controller (`Pad:`) or keyboard/mouse bindings (including one-click **Swap A↔B / ✕↔○** and **Swap X↔Y / □↔△** presets).
 - Load PORTHEON's UFC6.ini, standalone Kyty keymap JSON, launch scripts or shortcuts.
 - Review/edit bindings, preview labels, export settings or copy a Kyty argument.
 - Original flat monochrome keycaps generated from the selected bindings.

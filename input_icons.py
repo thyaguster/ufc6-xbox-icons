@@ -4,15 +4,38 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import struct
 import tempfile
 import zipfile
+import zlib
 
 import patcher_core as core
-from keyboard_bindings import Bindings,defaults,from_controls
+from keyboard_bindings import Bindings, PAD_DEFAULTS, SOURCE_TO_CONTROL, defaults, from_controls
 
 BACKUP='.ufc6-input-icons-backup.zip'
 STATE='.ufc6-input-icons-state.json'
 PROFILE='PPSA23566-01.006.000-keyboard.json'
+
+_TOKENS = {
+    'Cross': 'digital_one',
+    'Circle': 'digital_two',
+    'Triangle': 'digital_three',
+    'Square': 'digital_four',
+    'L1': 'left_bumper',
+    'R1': 'right_bumper',
+    'L2': 'left_trigger',
+    'R2': 'right_trigger',
+    'L3': 'las_c',
+    'R3': 'ras_c',
+    'TouchPad': 'select',
+    'Options': 'start',
+    'Guide': 'guide',
+    'Up': 'dpad_u',
+    'Down': 'dpad_d',
+    'Left': 'dpad_l',
+    'Right': 'dpad_r',
+}
+_TOKEN_TO_CTRL = {v: k for k, v in _TOKENS.items()}
 
 
 def load_profile(directory):
@@ -51,13 +74,118 @@ class OriginalView:
         return self.files.read(ref)
 
 
+def _slot_key(name, ctrl):
+    tok = _TOKENS[ctrl]
+    plat = 'ps' if '/ps/' in name else 'xbox'
+    s = name.replace(f'/{plat}/', '/{plat}/')
+    s = s.replace('_hold_skip_widget', '_hold').replace('_precanned_message', '')
+    if 'left_on_trigger' in s:
+        s = s.replace('left_on_trigger', '{tok}_on')
+    elif 'right_on_trigger' in s:
+        s = s.replace('right_on_trigger', '{tok}_on')
+    else:
+        s = s.replace(tok, '{tok}')
+    return plat, s
+
+
+def _patch_controller_flash(original, style, pad_map):
+    payload, frames = core.unframe(original)
+    before = core.decode_swf(payload)
+    after = bytearray(before)
+    symbols = core.swf_symbols(before)
+    names = {name: (character, offset) for name, character, offset in symbols}
+    target_plat = '_xb' if style == 'xbox' else '_ps'
+    for name, character, offset in symbols:
+        if '_ps' not in name:
+            continue
+        matched_tok = None
+        for tok in sorted(_TOKEN_TO_CTRL, key=len, reverse=True):
+            if f'_{tok}_' in name:
+                matched_tok = tok
+                break
+        target_name = None
+        if matched_tok is not None:
+            ctrl = _TOKEN_TO_CTRL[matched_tok]
+            src_btn = pad_map.get(ctrl)
+            target_ctrl = SOURCE_TO_CONTROL.get(src_btn, ctrl) if src_btn else ctrl
+            target_tok = _TOKENS.get(target_ctrl, matched_tok)
+            candidate = name.replace(f'_{matched_tok}_', f'_{target_tok}_').replace('_ps', target_plat)
+            if candidate in names:
+                target_name = candidate
+        if target_name is None and style == 'xbox':
+            candidate = name.replace('_ps', '_xb')
+            if candidate in names:
+                target_name = candidate
+        if target_name is not None and target_name in names:
+            struct.pack_into('<H', after, offset, names[target_name][0])
+    rebuilt = payload[:8] + zlib.compress(bytes(after[8:]), 9)
+    core.check(len(rebuilt) <= len(payload), 'Patched controller UI exceeds archive allocation.')
+    rebuilt += b'\0' * (len(payload) - len(rebuilt))
+    core.check(core.decode_swf(rebuilt) == after, 'Recompressed controller UI failed verification.')
+    result = bytearray(original)
+    for stored, plain, length in frames:
+        result[stored:stored + length] = rebuilt[plain:plain + length]
+    return bytes(result)
+
+
+def _apply_controller_remap(result, originals, profile, style, pad_map, log):
+    log(f'Applying custom {style} controller button mappings...')
+    inv = profile['keyboard'].get('texture_inventory', [])
+    entries_by_id = {e['id']: e for e in profile['entries']}
+    slot_map = {}
+    for item in inv:
+        ctrls = item['descriptor']['controls']
+        if len(ctrls) == 1 and ctrls[0] in _TOKENS:
+            ctrl = ctrls[0]
+            plat, s = _slot_key(item['name'], ctrl)
+            slot_map[(plat, s, ctrl)] = item
+
+    plat = 'xbox' if style == 'xbox' else 'ps'
+    modified_entries = set()
+    for item in inv:
+        if '/ps/' not in item['name'] or item.get('borrowed'):
+            continue
+        ctrls = item['descriptor']['controls']
+        if len(ctrls) != 1 or ctrls[0] not in _TOKENS:
+            continue
+        ctrl = ctrls[0]
+        src_btn = pad_map.get(ctrl)
+        target_ctrl = SOURCE_TO_CONTROL.get(src_btn, ctrl) if src_btn else ctrl
+        if target_ctrl == ctrl:
+            continue
+        _, s = _slot_key(item['name'], ctrl)
+        dst_ref = slot_map.get((plat, s, ctrl))
+        src_item = slot_map.get((plat, s, target_ctrl))
+        if dst_ref and src_item and not src_item.get('borrowed'):
+            e_dst = entries_by_id[item['entry']]
+            e_src = entries_by_id[src_item['entry']]
+            if (dst_ref['width'], dst_ref['height'], e_dst['length']) == (src_item['width'], src_item['height'], e_src['length']):
+                result[item['entry']] = originals[src_item['entry']]
+                modified_entries.add(item['entry'])
+
+    for op in profile['operations'].values():
+        if op['type'] == 'keyboard_sha1' and op['entry'] in modified_entries:
+            result[op['id']] = hashlib.sha1(result[op['entry']]).digest()
+        elif op['type'] == 'keyboard_flash':
+            result[op['id']] = _patch_controller_flash(originals[op['id']], style, pad_map)
+    return result
+
+
 def make_plan(files,profile,originals,style,bindings,log=lambda s:None):
     core.check(style in ('keyboard','xbox','playstation'),'Unknown icon style.')
-    if style=='playstation':return dict(originals)
+    bindings = bindings or defaults()
+    custom_pad = bindings.has_custom_pad()
+    if style=='playstation' and not custom_pad:
+        return dict(originals)
     view=OriginalView(files,profile['entries'],originals)
     xbox={e['id']:new for e,old,new in core.make_plan(view,profile['base'],log if style=='xbox' else lambda s:None)}
     result=dict(originals)
-    if style=='xbox':result.update(xbox);return result
+    if style in ('xbox','playstation'):
+        if style=='xbox':
+            result.update(xbox)
+        if custom_pad:
+            _apply_controller_remap(result, originals, profile, style, bindings.pad_controls(), log)
+        return result
     from keyboard_art import texture
     from keyboard_flash import patch as flash
     bindings.validate()
@@ -213,14 +341,18 @@ def run(action,root,profile,log=lambda s:None,*,style='xbox',bindings=None):
             current='playstation' if actual==originals else 'xbox / previous install'
             state=dict(schema=1,profile_digest=profile['digest'],current=snapshot(profile,actual,current))
         if action=='status':return f'Current icons: {current}. All {len(profile["entries"])} ranges verified.'
-        if action=='restore':style='playstation'
-        desired=make_plan(files,profile,originals,style,bindings or defaults(),log)
+        if action=='restore':
+            style='playstation'
+            bindings=defaults()
+        active_bindings = bindings or defaults()
+        desired=make_plan(files,profile,originals,style,active_bindings,log)
         if actual==desired:
             if backup_path.exists():atomic_json(state_path,state)
             return f'{style.capitalize()} icons already installed; all ranges verified.'
         # Compute and verify the full next state before creating a backup or
         # touching any archive. The pending journal survives process loss.
-        pending=snapshot(profile,desired,style,bindings if style=='keyboard' else None)
+        track_bindings = active_bindings if (style=='keyboard' or active_bindings.has_custom_pad()) else None
+        pending=snapshot(profile,desired,style,track_bindings)
         if not backup_path.exists():
             write_backup(backup_path,profile,originals)
             atomic_json(state_path,state)
