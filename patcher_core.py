@@ -76,6 +76,11 @@ def validate_game(root, profile):
     return root
 
 
+def is_game_process(name):
+    name=name.casefold()
+    return name in ('ufc 6.exe','ufc6.exe','kyty.exe','kyty_emulator.exe') or (name.startswith('ufc 6 ') and name.endswith('.exe'))
+
+
 def game_running():
     """Avoid modifying archives while a UFC 6 engine is running on Windows."""
     if os.name != 'nt':
@@ -99,7 +104,7 @@ def game_running():
         entry.size = ctypes.sizeof(entry)
         ok = kernel.Process32FirstW(handle, ctypes.byref(entry))
         while ok:
-            if entry.exe.casefold() in ('ufc 6.exe', 'kyty_emulator.exe', 'ufc 6 parsec.exe'):
+            if is_game_process(entry.exe):
                 return True
             ok = kernel.Process32NextW(handle, ctypes.byref(entry))
         return False

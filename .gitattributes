@@ -5,3 +5,4 @@ profiles/*.json -text
 runtime-licenses/* -text
 LICENSE -text
 *.png -text
+keyboard-art/font/* -text

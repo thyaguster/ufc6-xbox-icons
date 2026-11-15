@@ -22,21 +22,24 @@ jobs:
           python-version: '3.14.2'
           architecture: x64
 
+      - name: Install rendering dependency
+        run: python -m pip install -r requirements.txt
+
       - name: Check source and public tests
         shell: pwsh
         run: |
-          python -m compileall -q patcher_core.py xbox_icons.py tests
+          python -m compileall -q patcher_core.py xbox_icons.py input_gui.py input_icons.py keyboard_bindings.py keyboard_art.py keyboard_flash.py tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s tests -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from pathlib import Path; from patcher_core import load_profile; from xbox_icons import license_text; p=load_profile(Path('.')); assert len(p['entries'])==430; assert 'Jean-loup' in license_text(); print('Profile and runtime notices verified')"
+          python -c "from pathlib import Path; from input_icons import load_profile; from xbox_icons import license_text; p=load_profile(Path('.')); assert len(p['entries'])==816; assert 'Jean-loup' in license_text(); print('Both icon profiles and runtime notices verified')"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install build tools
         run: python -m pip install PyInstaller==6.22.3 pyinstaller-hooks-contrib==2026.9
 
       - name: Build standalone executable
-        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name UFC6-Xbox-Icons --add-data "profiles;profiles" --add-data "LICENSE;." --add-data "THIRD-PARTY-NOTICES.md;." --add-data "runtime-licenses;runtime-licenses" xbox_icons.py
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --exclude-module numpy --exclude-module psutil --exclude-module charset_normalizer --name UFC6-Xbox-Icons --add-data "profiles;profiles" --add-data "LICENSE;." --add-data "THIRD-PARTY-NOTICES.md;." --add-data "runtime-licenses;runtime-licenses" --add-data "keyboard-art;keyboard-art" xbox_icons.py
 
       - name: Check bundled profile and notices
         shell: pwsh
@@ -46,7 +49,7 @@ jobs:
           from PyInstaller.archive.readers import CArchiveReader
           base = Path('.')
           archive = CArchiveReader('dist/UFC6-Xbox-Icons.exe')
-          resources = ['profiles/PPSA23566-01.006.000.json', 'LICENSE', 'THIRD-PARTY-NOTICES.md']
+          resources = ['profiles/PPSA23566-01.006.000.json', 'profiles/PPSA23566-01.006.000-keyboard.json', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'keyboard-art/font/BarlowCondensed-Bold.ttf', 'keyboard-art/font/OFL.txt']
           resources += [p.as_posix() for p in Path('runtime-licenses').glob('*.txt')]
           for rel in resources:
               key = next(k for k in archive.toc if k.replace('\\', '/') == rel)

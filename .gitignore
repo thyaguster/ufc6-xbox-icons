@@ -21,3 +21,7 @@ test-fixtures/
 output/
 build_deps/
 dependencies/
+
+.ufc6-input-icons-*
+private/
+*.tmp

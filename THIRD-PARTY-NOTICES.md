@@ -1,6 +1,7 @@
 # Runtime components
 
-The Python source patcher has no dependencies outside Python's standard library.
+Xbox-only patch operations use Python's standard library. Keyboard rendering
+requires Pillow; the Windows executable includes it.
 The Windows executable is built with PyInstaller and includes components of:
 
 - **Python**, Python Software Foundation License:
@@ -19,3 +20,13 @@ accessible through its Licenses button. No game or emulator code is bundled.
 `Python-Additional-Notices.txt` includes the bundled Python documentation's
 third-party notices, including zlib and libffi. `Tcl-Tk.txt` preserves the
 license terms supplied with the installed Tk runtime.
+
+
+Keyboard artwork uses **Barlow Condensed Bold**, by Jeremy Tribby and
+contributors, under the SIL Open Font License 1.1. The original font and license
+are bundled in `keyboard-art/font/` and included in the Licenses view.
+Source: https://github.com/google/fonts/tree/main/ofl/barlowcondensed
+
+Keyboard rendering uses **Pillow 12.1.0**. Its license and bundled dependency
+notices are in `runtime-licenses/Pillow-LICENSE.txt` and the Licenses view.
+Source: https://github.com/python-pillow/Pillow

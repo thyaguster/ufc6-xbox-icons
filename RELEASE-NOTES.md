@@ -1,23 +1,28 @@
-# UFC 6 Xbox Controller Icons v1.0.1
+# UFC 6 Controller Icons v1.1.0
 
-Xbox prompts for **UFC 6 PPSA23566, version 01.006.000**, tested through PORTHEON.
+Adds keyboard/mouse icon installation alongside Xbox and original PlayStation.
+Supports **PPSA23566, version 01.006.000**.
 
-The Windows executable now includes its patch profile and license notices.
-Users only need the EXE; no separate profiles folder or Python installation.
-Embedded notices are available through the Licenses button. Patch operations
-and backup format are unchanged from v1.0.0.
+- Load PORTHEON's UFC6.ini, standalone Kyty keymap JSON, launch scripts or shortcuts.
+- Review/edit bindings, preview labels, export settings or copy a Kyty argument.
+- Original flat monochrome keycaps generated from the selected bindings.
+- Keyboard mode generates 328 texture prompts and 110 Flash bitmaps while
+  preserving ActionScript, sprite placements, file sizes and input code.
+- Switch between keyboard, Xbox and original icons without losing originals.
+- Imports verified v1.0.x Xbox restore backups automatically.
+- Unified backup and a durable state journal support interrupted-write recovery.
 
-- Desktop folder picker with Check status, Install and Restore.
-- Standalone Windows x64 download; Python source also available.
-- Reuses Xbox artwork from your own game backup; no game assets are shipped.
-- Covers 172 texture pairs and 38 Flash button-symbol pairs.
-- Local restore backup, build checks, preflight validation and read-back checks.
+The EXE includes Pillow, the open font, profiles and notices. Source users need
+Python 3.10+, Tkinter and `python -m pip install -r requirements.txt`.
 
-Verified: career-menu A/B/Y, LB/RB, and cinematic hold-A skip. Live-fight prompts
-have not all been individually verified. Other title IDs and game updates are
-not supported by this release.
+Imports never modify launcher settings. If you edit bindings here, use the
+matching exported --keymap argument in standalone Kyty. After changing launcher
+bindings, reinstall keyboard icons. Prompts do not switch automatically when a
+controller is used. Older Xbox-only tools should be used only after switching
+back to Xbox or original icons with this release.
 
-Close UFC 6 before installing or restoring. Keep the local backup file. If
-using the development mod, restore it with the development installer first.
+Close UFC 6 before installing/restoring and retain both local unified backup
+files. No extracted game assets or executables are included in the release.
 
-Extract the download and run UFC6-Xbox-Icons.exe. See README.md for details.
+Verified in-game: J Select/Cancel, I Restart/Simulate, Q/E tabs, and Ctrl.
+No week was advanced and no fight was started during the visual checks.
